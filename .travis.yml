@@ -1,22 +1,42 @@
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
+addons: {}
+after_success:
+- export JAVA_TOOL_OPTIONS=-javaagent:$DFB_PROJECT_DIR/jacoco-agent-jdk8.jar=destfile=$DFB_PROJECT_DIR/jacoco.exec
+- mvn test -Djacoco.skip=true -Dcobertura.skip=true -Dmaven.clover.skip=true apache-rat:check
+  verify -Dlicense.skip=false -Pall-modules
+- ./df-build.sh
+- env > env.file
+- curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install |
+  bash
+- artifacts upload --key $AWS_ACCESS_KEY_ID --secret $AWS_SECRET_ACCESS_KEY --bucket
+  $DFB_AWS_BUCKET --target-paths $DFB_AWS_BUILD_PATH $(git ls-files -oi -x *.exec)
+- artifacts upload --key $AWS_ACCESS_KEY_ID --secret $AWS_SECRET_ACCESS_KEY --bucket
+  $DFB_AWS_BUCKET --target-paths $DFB_AWS_BUILD_PATH ${DFB_PROJECT_DIR}/env.file
+before_install:
+- wget -O beforebuild.sh $DFB_AGENTS_URL/beforebuild.sh
+- chmod a+x beforebuild.sh
+- ./beforebuild.sh
+env:
+  global:
+  - DFB_PROJECT_DIR=$(pwd)
+  - TMP_PROJECT_PARENT_DIR=$(dirname $DFB_PROJECT_DIR)
+  - DFB_BUILD_ID=$TRAVIS_BUILD_ID
+  - DFB_PRODUCT_NAME=$(basename $DFB_PROJECT_DIR)
+  - DFB_OWNER_NAME=$(basename $TMP_PROJECT_PARENT_DIR)
+  - DFB_PRODUCT_KEY=${DFB_OWNER_NAME}_${DFB_PRODUCT_NAME}
+  - DFB_AWS_BUCKET=aline-external-ci-artifacts
+  - DFB_AGENTS_URL=https://s3.amazonaws.com/${DFB_AWS_BUCKET}/agents
+  - DFB_PACKAGING_URL=s3://${DFB_AWS_BUCKET}/artifacts/travis/
+  - DFB_AWS_BUILD_PATH=/artifacts/travis/${DFB_PRODUCT_KEY}/${DFB_BUILD_ID}/output/
+  - AWS_ACCESS_KEY_ID=AKIAIIU2LBOCCKXAIFZQ
+  - AWS_SECRET_ACCESS_KEY=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
+  - DFB_JTO=-javaagent:${DFB_PROJECT_DIR}/dfbuild-agent.jar=PACKAGING_BASE_URI=$DFB_PACKAGING_URL,PRODUCT_KEY=$DFB_PRODUCT_KEY/,BUILD_KEY=$DFB_BUILD_ID/,MODULES_KEY=modules/,START_TIME=0,BUILD_BASE_DIR=$DFB_PROJECT_DIR
+jdk:
+- oraclejdk8
 language: java
-
-script: mvn apache-rat:check verify -Dlicense.skip=false -Pall-modules
-
-notifications:
-  slack:
-    secure: GlWD2EjgNC6Lg2DtAfZuKhg2RTHE0FMeyfHH24D7TKmV49gRVTzTTqvExwOdLLYDDIu966eOF5w90/PfiD11A4rpm6+WyjRHDkpOhTyjBKWc2btMqNwiP1hRf2uKEG6A+RgszaQJ4HkGiMxIpDJ3o/jaTpBseOeA399t8Z7Pkd6obXVAEMcnm2XtfUPzIBqGblVkiecS3OzbkzjKWaOG6+nlp+ajVO7MazsOR05JNZ1MXnDOK/Qq/7xLBtweF4r/O8okyg52fST4pGqk4JTTI++bVFoRySpjNWSSJbdrfkWG/7h0sfqMcwMj8TpZqojcCuTvZih+IyPZwX3MP6Ls4bF6OFcD3BvWg049WbstA6ZdKnVW9fOiJoJ+Bx9gNI0tKtYeDt/8nMBfSRVMmzRVEGdTOEEpFs7n79OVVytwbp8qYFU+waqlG1/tMQvCclSaxuY8d236Ybg410KLiMQ0YhQ8ZaTVagHu2l0KrfV16Xq3/CRsolHa8k7PxDzmCxdi07Ao/mrorQLmJWoc7FkxEw6ZrEGHP17HTn5uidoTkANgGak4AVgrJm6zLKdAERxvr1KMnfyuJLT1ZK1x73SV+3EpdzcMLxvq2dMaBpZcfARiYB04EwSHVBdm/D0AIZtRL2s1rG85y1OtCkDMd04ZEvbwdKYZ+fD+HjTn7Zo7AKM=
+notifications: {}
+script:
+- export JAVA_TOOL_OPTIONS=$DFB_JTO
+- mvn clean
+- mvn -Djacoco.skip=true -Dcobertura.skip=true -Dmaven.clover.skip=true apache-rat:check
+  verify -Dlicense.skip=false -Pall-modules
+# Modified by IntegrationTestInstrumentation at 2016-05-12 02:29:04.348018
